@@ -56,7 +56,7 @@ func (s *Server) Start() error {
 // handleConnection manages the lifecycle of an individual connected node.
 func (s *Server) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	fmt.Printf("[AEGIS-SERVER] Inbound node connected from: %s\n", conn.RemoteAddr().String())
 
@@ -71,7 +71,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 func (s *Server) Stop() error {
 	close(s.quit)
 	if s.listener != nil {
-		s.listener.Close()
+		_ = s.listener.Close()
 	}
 	s.wg.Wait()
 	fmt.Println("[AEGIS-SERVER] Engine shutdown complete. Clean state preserved.")
