@@ -20,5 +20,5 @@ func DefaultConfig() *Config {
 		Address:      ":8080",
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
-	}
+	} 
 }

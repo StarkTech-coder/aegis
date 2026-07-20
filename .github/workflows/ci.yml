@@ -1,0 +1,44 @@
+name: Aegis Core SDK CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    # Matrix Build: Kodumuzu aynı anda 3 farklı işletim sisteminde test ediyoruz!
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.22', '1.23']
+    
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Set up Go Runtime (${{ matrix.go-version }})
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+        cache: true
+
+    - name: Install Dependencies
+      run: go mod download
+
+    - name: Verify Cross-Platform Compilation
+      run: go build -v ./...
+
+    - name: Run Tests with Race Detector
+      # Windows ve Unix sistemlerin kabuk farkından dolayı standart go komutuyla koşuyoruz
+      run: go test -race -v -coverprofile=coverage.txt -covermode=atomic ./...
+
+    - name: Run Linter (Only on Linux to save time)
+      if: matrix.os == 'ubuntu-latest'
+      uses: golangci-lint/golangci-lint-action@v6
+      with:
+        version: v1.60
