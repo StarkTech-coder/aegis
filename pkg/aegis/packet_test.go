@@ -1,17 +1,16 @@
-package tests
+package aegis
 
 import (
 	"bytes"
 	"errors"
 	"testing"
-
-	// go.mod dosmandaki modül adı neyse onunla başla (örn: "aegis" veya "github.com/tony/aegis")
-	"aegis/pkg/aegis" 
 )
 
+// TestPacketSerializationAndDecoding verifies that a packet can be correctly
+// serialized to binary format and decoded back without data loss.
 func TestPacketSerializationAndDecoding(t *testing.T) {
 	originalPayload := []byte("DRONE_STATUS:ACTIVE_BATTERY:88%")
-	packet := aegis.NewPacket(originalPayload) // aegis. prefix'i eklendi
+	packet := NewPacket(originalPayload)
 
 	// Test Serialization
 	serialized, err := packet.Serialize()
@@ -21,7 +20,7 @@ func TestPacketSerializationAndDecoding(t *testing.T) {
 
 	// Test Stream Decoding (Valid State)
 	reader := bytes.NewReader(serialized)
-	decodedPacket, err := aegis.ReadPacket(reader) // aegis. prefix'i eklendi
+	decodedPacket, err := ReadPacket(reader)
 	if err != nil {
 		t.Fatalf("Failed to decode valid packet stream: %v", err)
 	}
@@ -31,53 +30,63 @@ func TestPacketSerializationAndDecoding(t *testing.T) {
 	}
 }
 
+// TestReadPacketCorruptedIntegrity verifies that CRC32 checksum validation
+// catches payload bit-rot and corrupted data in transit.
 func TestReadPacketCorruptedIntegrity(t *testing.T) {
 	originalPayload := []byte("SECURE_DATA")
-	packet := aegis.NewPacket(originalPayload)
+	packet := NewPacket(originalPayload)
 	serialized, _ := packet.Serialize()
 
+	// Corrupt the last byte to break the checksum
 	serialized[len(serialized)-1] ^= 0xFF
 
 	reader := bytes.NewReader(serialized)
-	_, err := aegis.ReadPacket(reader)
+	_, err := ReadPacket(reader)
 
 	if err == nil {
 		t.Fatal("Expected error due to packet corruption, but got nil")
 	}
 
-	if !errors.Is(err, aegis.ErrInvalidPacket) { // aegis. prefix'i eklendi
+	if !errors.Is(err, ErrInvalidPacket) {
 		t.Errorf("Expected wrapped ErrInvalidPacket, got: %v", err)
 	}
 }
 
+// TestReadPacketInvalidMagicBytes verifies that incoming byte streams
+// with unknown magic bytes are rejected at the security gate.
 func TestReadPacketInvalidMagicBytes(t *testing.T) {
 	originalPayload := []byte("HELLO")
-	packet := aegis.NewPacket(originalPayload)
+	packet := NewPacket(originalPayload)
 	serialized, _ := packet.Serialize()
 
+	// Alter magic byte header
 	serialized[0] = 0x00
 
 	reader := bytes.NewReader(serialized)
-	_, err := aegis.ReadPacket(reader)
+	_, err := ReadPacket(reader)
 
 	if err == nil {
 		t.Fatal("Expected magic byte validation error, got nil")
 	}
-	if !errors.Is(err, aegis.ErrInvalidPacket) {
+	if !errors.Is(err, ErrInvalidPacket) {
 		t.Errorf("Expected ErrInvalidPacket, got: %v", err)
 	}
 }
 
+// TestReadPacketPayloadTooLargeSafetyLimit verifies that the engine blocks
+// oversized payload headers to prevent Memory Exhaustion (OOM/DDoS) attacks.
 func TestReadPacketPayloadTooLargeSafetyLimit(t *testing.T) {
+	// Header declaring a payload of 100,000 bytes (0x00, 0x01, 0x86, 0x9F)
+	// which exceeds the 65,535 byte safety threshold.
 	maliciousHeader := []byte{0x41, 0x47, 0x00, 0x01, 0x86, 0x9F, 0x00, 0x00, 0x00, 0x00}
-	
+
 	reader := bytes.NewReader(maliciousHeader)
-	_, err := aegis.ReadPacket(reader)
+	_, err := ReadPacket(reader)
 
 	if err == nil {
 		t.Fatal("Expected OOM prevention limit error, got nil")
 	}
-	if !errors.Is(err, aegis.ErrPacketTooLarge) {
+	if !errors.Is(err, ErrPacketTooLarge) {
 		t.Errorf("Expected ErrPacketTooLarge, got: %v", err)
 	}
 }

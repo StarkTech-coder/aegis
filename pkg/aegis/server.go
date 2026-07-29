@@ -1,6 +1,7 @@
 package aegis
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -10,6 +11,19 @@ import (
 	"sync"
 	"time"
 )
+
+// PacketHandler defines the event contract for processing incoming binary payloads.
+type PacketHandler interface {
+	HandlePacket(payload []byte) error
+}
+
+// PacketHandlerFunc adapts a standard signature function into a PacketHandler interface.
+type PacketHandlerFunc func(payload []byte) error
+
+// HandlePacket invokes the underlying handler function.
+func (f PacketHandlerFunc) HandlePacket(payload []byte) error {
+	return f(payload)
+}
 
 // Server represents the high-performance, enterprise-grade Aegis TCP network engine.
 type Server struct {
@@ -21,6 +35,7 @@ type Server struct {
 	cancel    context.CancelFunc
 	logger    *slog.Logger
 	semaphore chan struct{} // Connection Manager: Semaphore pool bound strictly to dynamic config values
+	handler   PacketHandler // Decoupled packet handler bridge
 }
 
 // NewServer initializes a new Server instance after validating config and setting up enterprise components.
@@ -48,6 +63,16 @@ func NewServer(cfg *Config) (*Server, error) {
 		logger:    logger,
 		semaphore: make(chan struct{}, cfg.MaxConnections), // Dynamic boundary allocation
 	}, nil
+}
+
+// SetHandler assigns a PacketHandler interface to process decoded frame payloads.
+func (s *Server) SetHandler(h PacketHandler) {
+	s.handler = h
+}
+
+// OnPacket registers a standalone function handler to process decoded frame payloads.
+func (s *Server) OnPacket(fn func(payload []byte) error) {
+	s.handler = PacketHandlerFunc(fn)
 }
 
 // Start binds to the configured network address and listens for incoming nodes using context lifecycles.
@@ -97,7 +122,10 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		<-s.semaphore // Release token back to the dynamic semaphore pool upon node exit
 	}()
 
-	s.logger.Info("Inbound node connected successfully", "remote_addr", conn.RemoteAddr().String())
+	s.logger.Debug("Inbound node connected successfully", "remote_addr", conn.RemoteAddr().String())
+
+	// 64KB High-Throughput Buffer: Reduces kernel syscalls by batching TCP stream reads
+	reader := bufio.NewReaderSize(conn, 65536)
 
 	for {
 		select {
@@ -111,11 +139,11 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 			_ = conn.SetReadDeadline(time.Now().Add(s.config.ReadTimeout))
 		}
 
-		// Senior Katmani: Stream-safe frame decoding using io.ReadFull instead of raw byte slicing
-		packet, err := ReadPacket(conn)
+		// Read frame using buffered reader instead of raw connection
+		packet, err := ReadPacket(reader)
 		if err != nil {
 			if err == io.EOF {
-				s.logger.Info("Remote node closed connection gracefully", "remote_addr", conn.RemoteAddr().String())
+				s.logger.Debug("Remote node closed connection gracefully", "remote_addr", conn.RemoteAddr().String())
 				break
 			}
 			// Handle net.Error for timeout operations elegantly
@@ -127,11 +155,18 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 			break
 		}
 
-		s.logger.Info("Valid Aegis Binary Protocol packet processed via Frame Decoder",
+		// Dispatch packet payload to registered consumer handler if configured
+		if s.handler != nil {
+			if err := s.handler.HandlePacket(packet.Payload); err != nil {
+				s.logger.Error("Execution error encountered in payload handler", "remote_addr", conn.RemoteAddr().String(), "error", err)
+			}
+		}
+
+		// Reduced log level to DEBUG during ultra-high throughput load tests
+		s.logger.Debug("Valid Aegis Binary Protocol packet processed via Frame Decoder",
 			"remote_addr", conn.RemoteAddr().String(),
 			"payload_len", packet.Length,
 			"checksum", packet.Checksum,
-			"data", string(packet.Payload),
 		)
 	}
 }

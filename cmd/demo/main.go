@@ -2,58 +2,58 @@ package main
 
 import (
 	"aegis/pkg/aegis"
-	"bufio"
 	"fmt"
 	"log"
 	"time"
 )
 
 func main() {
-	fmt.Println("=== AEGIS CORE v0.1 SIMULATION MAIN ENGINE ===")
+	fmt.Println("=== AEGIS CORE v0.2 PRO-ARCHITECTURE ENGINE ===")
 
-	// 1. Load the default network configuration parameters
 	cfg := aegis.DefaultConfig()
 
-	// 2. Initialize the core network server instance via the SDK
-	server := aegis.NewServer(cfg)
+	server, err := aegis.NewServer(cfg)
+	if err != nil {
+		log.Fatalf("[-] Critical: Server initialization failed: %v", err)
+	}
 
-	// Spin up the server engine inside a concurrent goroutine since Start() is a blocking call
 	go func() {
 		if err := server.Start(); err != nil {
 			log.Fatalf("[-] Critical: Server failure: %v", err)
 		}
 	}()
 
-	// Allow a brief propagation delay for the server socket to bind cleanly to the OS port
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
-	fmt.Println("[SIMULATION] Initializing outbound node connection...")
+	client, err := aegis.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("[-] Critical: Client initialization failed: %v", err)
+	}
 
-	// 3. Initialize the core network client instance via the SDK
-	client := aegis.NewClient(cfg)
-
-	// 4. Establish a secure outbound connection to the target node address
+	// 4. Connect and send actual binary packets instead of plain strings!
 	conn, err := client.Connect(cfg.Address)
 	if err != nil {
 		log.Fatalf("[-] Critical: Client connection failure: %v", err)
 	}
-	defer func() { _ = conn.Close() }()
 
-	// 5. Read the mandatory protocol-level handshake packet sent by the remote host
-	reader := bufio.NewReader(conn)
-	message, err := reader.ReadString('\n')
+	// Create a real protocol packet to fire at our new server engine
+	telemetryPacket := aegis.NewPacket([]byte("DRONE_ALTITUDE:450m_SPEED:22knots"))
+	serializedData, err := telemetryPacket.Serialize()
 	if err != nil {
-		log.Fatalf("[-] Critical: Failed to read handshake packet: %v", err)
+		log.Fatalf("[-] Critical: Serialization failed: %v", err)
 	}
 
-	// 6. Verify and display the successful handshake result
-	fmt.Printf("[SIMULATION] Handshake Protocol Verification Success!\n Received Packet: %s", message)
+	_, err = conn.Write(serializedData)
+	if err != nil {
+		log.Fatalf("[-] Critical: Failed to transmit packet: %v", err)
+	}
 
-	// 7. Gracefully terminate active network engine components to preserve clean state
-	fmt.Println("[SIMULATION] Terminating active engine components...")
+	time.Sleep(200 * time.Millisecond)
+	_ = conn.Close()
+
 	if err := server.Stop(); err != nil {
 		log.Fatalf("[-] Critical: Failed to stop server gracefully: %v", err)
 	}
 
-	fmt.Println("=== SIMULATION TERMINATED CLEANLY ===")
+	fmt.Println("=== SIMULATION TERMINATED CLEANLY WITH SLOG PROFILES ===")
 }

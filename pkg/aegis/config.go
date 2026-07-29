@@ -73,5 +73,9 @@ func (cfg *Config) Validate() error {
 		return errors.New("aegis-config: read timeout cannot be greater than 60 seconds")
 	}
 
+	if cfg.WriteTimeout > 60*time.Second {
+		return errors.New("aegis-config: write connection timeout cannot be greater than 60 seconds")
+	}
+
 	return nil
 }

@@ -1,18 +1,17 @@
-package tests
+package aegis
 
 import (
 	"testing"
 	"time"
-
-	"aegis/pkg/aegis"
 )
 
-// TestServerLifecycle verifies that the server starts and stops without blocking or leaking memory.
+// TestServerLifecycle verifies that the server starts and stops gracefully 
+// without blocking or leaking memory resources.
 func TestServerLifecycle(t *testing.T) {
-	cfg := aegis.DefaultConfig()
+	cfg := DefaultConfig()
 	cfg.Address = ":9090"
 
-	server, err := aegis.NewServer(cfg)
+	server, err := NewServer(cfg)
 	if err != nil {
 		t.Fatalf("Failed to initialize server instance: %v", err)
 	}
@@ -31,9 +30,11 @@ func TestServerLifecycle(t *testing.T) {
 	}
 }
 
+// TestConfigValidationAndSanitization tests fallback behaviors and boundary 
+// validation checks for input configurations.
 func TestConfigValidationAndSanitization(t *testing.T) {
-	// Scenario A: Test Nil Config injection handles safely via DefaultConfig fallback
-	client, err := aegis.NewClient(nil)
+	// Scenario A: Verify that nil config fallback defaults to safe parameters
+	client, err := NewClient(nil)
 	if err != nil {
 		t.Fatalf("NewClient(nil) should not return error, but got: %v", err)
 	}
@@ -41,13 +42,13 @@ func TestConfigValidationAndSanitization(t *testing.T) {
 		t.Errorf("Expected fallback address :8080, got: %s", client.Config().Address)
 	}
 
-	// Scenario B: Test Invalid Config Bounds Validation
-	badCfg := &aegis.Config{
+	// Scenario B: Verify boundary limits for invalid configuration fields
+	badCfg := &Config{
 		Address:     ":8080",
-		ReadTimeout: 65 * time.Second, // Exceeds upper limit boundary of 60 seconds
+		ReadTimeout: 65 * time.Second, // Exceeds upper boundary limit of 60 seconds
 	}
 
-	_, err = aegis.NewServer(badCfg)
+	_, err = NewServer(badCfg)
 	if err == nil {
 		t.Fatal("Expected configuration validation boundary error, but got nil success")
 	}

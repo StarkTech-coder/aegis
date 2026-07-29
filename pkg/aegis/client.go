@@ -64,6 +64,7 @@ func (c *Client) Connect(targetAddress string) (net.Conn, error) {
 		_ = conn.Close()
 		return nil, fmt.Errorf("aegis-client: failed to set write deadline: %w", err)
 	}
-
+ 
 	return conn, nil
 }
+ 
