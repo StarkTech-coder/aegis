@@ -15,7 +15,7 @@
 * **Resource Exhaustion Safeguards**: Dynamic connection pool isolation using buffered semaphore channels (`MaxConnections` limit enforcement).
 * **Zero-Allocation Buffering**: Leverages `bufio.Reader` (64KB chunks) to drastically decrease kernel syscall overhead under high load.
 * **Context-Aware Lifecycles**: Fully supports graceful shutdowns and connection flushes via standard `context.Context` signals.
-
+![alt text](image.png)
 ---
 
 ## System Architecture

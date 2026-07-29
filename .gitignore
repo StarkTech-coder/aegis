@@ -11,9 +11,17 @@ out/
 *.test
 *.out
 coverage.txt
+coverage.out
+coverage.html
+
+# Profiling
+*.prof
+cpu.prof
+mem.prof
 
 # Go Workspace
 go.work
+vendor/
 
 # IDEs & Editors
 .vscode/
@@ -21,6 +29,9 @@ go.work
 *.sw?
 *.swp
 *.swo
+
+# Logs
+*.log
 
 # OS Junk Files
 .DS_Store
