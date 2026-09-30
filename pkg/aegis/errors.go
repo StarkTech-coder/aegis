@@ -3,25 +3,38 @@ package aegis
 import "errors"
 
 var (
+	// ErrConnectionClosed indicates that a remote node closed the connection.
+	ErrConnectionClosed = errors.New(
+		"aegis: connection closed by remote node",
+	)
 
-	// ErrConnectionClosed is returned when the remote node closes the connection.
-	ErrConnectionClosed = errors.New("aegis: connection closed by remote node") 
+	// ErrTimeout indicates that a network operation exceeded its deadline.
+	ErrTimeout = errors.New(
+		"aegis: network operation timed out", 
+	)
 
-	// ErrTimeout is returned when a network operation exceeds its allocated duration.
-	ErrTimeout = errors.New("aegis: network operation timed out")
+	// ErrInvalidPacket indicates that packet data failed protocol validation.
+	ErrInvalidPacket = errors.New(
+		"aegis: invalid or corrupted packet format",
+	)
 
-	// ErrInvalidPacket is returned when the incoming data does not match the binary protocol schema.
-	ErrInvalidPacket = errors.New("aegis: invalid or corrupted packet format")
+	// ErrBufferFull indicates that an internal capacity limit was reached.
+	ErrBufferFull = errors.New(
+		"aegis: internal ring buffer is full",
+	)
 
-	// ErrBufferFull is returned when the internal ring buffer or channels are full, indicating heavy load.
-	ErrBufferFull = errors.New("aegis: internal ring buffer is full")
+	// ErrPacketTooLarge indicates that packet data exceeded the configured limit.
+	ErrPacketTooLarge = errors.New(
+		"aegis: packet size exceeds max allowed limit",  
+	)
 
-	// ErrPacketTooLarge protects the system against DDoS and Out-Of-Memory (OOM) crashes.
-	ErrPacketTooLarge = errors.New("aegis: packet size exceeds max allowed limit")
+	// ErrServerClosed indicates that the server is shutting down.
+	ErrServerClosed = errors.New(
+		"aegis: server is shutting down",
+	)
 
-	// ErrServerClosed is returned when an operation is attempted while the server is shutting down.
-	ErrServerClosed = errors.New("aegis: server is shutting down")
-
-	// ErrMaxClientsReached limits concurrent connections to protect server resources from exhaustion.
-	ErrMaxClientsReached = errors.New("aegis: max client connections reached")
+	// ErrMaxClientsReached indicates that the connection limit has been reached.
+	ErrMaxClientsReached = errors.New(
+		"aegis: max client connections reached",
+	)
 )

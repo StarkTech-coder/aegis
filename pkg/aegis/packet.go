@@ -32,7 +32,7 @@ func NewPacket(payload []byte) *Packet {
 	}
 }
 
-// Serialize converts the Packet struct into a raw byte slice ready to be transmitted over TCP.
+// Serialize converts the Packet struct into a raw byte slice ready to be transmitted over the wire.
 func (p *Packet) Serialize() ([]byte, error) {
 	buf := new(bytes.Buffer)
 
@@ -52,10 +52,14 @@ func (p *Packet) Serialize() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Deserialize parses a raw byte slice into a valid structural Packet.
-func Deserialize(data []byte) (*Packet, error) {
+// Deserialize parses a raw byte slice into a valid structural Packet safely.
+func Deserialize(data []byte, maxPayloadLimit uint32) (*Packet, error) {
 	if len(data) < HeaderSize {
-		return nil, fmt.Errorf("%w: packet header is too short", ErrInvalidPacket)
+		return nil, fmt.Errorf("%w: packet header is too short, got %d bytes", ErrInvalidPacket, len(data))
+	}
+
+	if maxPayloadLimit == 0 {
+		maxPayloadLimit = DefaultMaxPayloadSize
 	}
 
 	buf := bytes.NewReader(data)
@@ -72,12 +76,22 @@ func Deserialize(data []byte) (*Packet, error) {
 		return nil, fmt.Errorf("aegis-packet: failed to decode length: %w", err)
 	}
 
+	if p.Length > maxPayloadLimit {
+		return nil, fmt.Errorf("%w: packet length %d exceeds configured limit %d", ErrPacketTooLarge, p.Length, maxPayloadLimit)
+	}
+
+	// Exact datagram size boundary validation for UDP/RUDP frame isolation
+	expectedSize := HeaderSize + int(p.Length)
+	if len(data) != expectedSize {
+		return nil, fmt.Errorf("%w: exact datagram size mismatch, expected %d bytes, got %d bytes", ErrInvalidPacket, expectedSize, len(data))
+	}
+
 	if err := binary.Read(buf, binary.BigEndian, &p.Checksum); err != nil {
 		return nil, fmt.Errorf("aegis-packet: failed to decode checksum: %w", err)
 	}
 
 	p.Payload = make([]byte, p.Length)
-	if _, err := buf.Read(p.Payload); err != nil {
+	if _, err := io.ReadFull(buf, p.Payload); err != nil {
 		return nil, fmt.Errorf("aegis-packet: failed to read complete payload: %w", err)
 	}
 
@@ -90,7 +104,11 @@ func Deserialize(data []byte) (*Packet, error) {
 
 // ReadPacket isolates individual packets from a continuous TCP stream (Frame Decoder).
 // It solves TCP fragmentation and packet coalescing issues fundamentally by using length-based parsing.
-func ReadPacket(r io.Reader) (*Packet, error) {
+func ReadPacket(r io.Reader, maxPayloadLimit uint32) (*Packet, error) {
+	if maxPayloadLimit == 0 {
+		maxPayloadLimit = DefaultMaxPayloadSize
+	}
+
 	headerBuf := make([]byte, HeaderSize)
 
 	// io.ReadFull blocks until EXACTLY 10 bytes (Header) are read, preventing partial reads
@@ -107,9 +125,8 @@ func ReadPacket(r io.Reader) (*Packet, error) {
 	p.Length = binary.BigEndian.Uint32(headerBuf[2:6])
 	p.Checksum = binary.BigEndian.Uint32(headerBuf[6:10])
 
-	// Anti-DDoS / OOM Guard: Prevent allocation of huge malformed byte arrays
-	if p.Length > 65535 {
-		return nil, fmt.Errorf("%w: payload size %d exceeds safety limit", ErrPacketTooLarge, p.Length)
+	if p.Length > maxPayloadLimit {
+		return nil, fmt.Errorf("%w: payload size %d exceeds safety limit %d", ErrPacketTooLarge, p.Length, maxPayloadLimit)
 	}
 
 	// Read exactly the payload length specified in the header
