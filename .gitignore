@@ -13,43 +13,7 @@ out/
 coverage.txt
 coverage.out
 coverage.html
-# Binaries & Outputs
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin/
-out/
 
-# Test & Coverage
-*.test
-*.out
-coverage.txt
-coverage.out
-coverage.html
-
-# Profiling
-*.prof
-cpu.prof
-mem.prof
-
-# Go Workspace
-go.work
-vendor/
-
-# IDEs & Editors
-.vscode/
-.idea/
-*.sw?
-*.swp
-*.swo
-
-# Logs
-*.log
-
-# OS Junk Files
-.DS_Store
 # Profiling
 *.prof
 cpu.prof
