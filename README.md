@@ -272,6 +272,33 @@ The design must consider:
 - Node recovery
 - False failure detection
 
+#### Current implementation (Phase 1)
+
+AEGIS now includes a heartbeat and node health monitoring foundation in [pkg/aegis/heartbeat.go](pkg/aegis/heartbeat.go).
+
+- Configurable `HeartbeatConfig`:
+   - `Interval`
+   - `Timeout`
+   - `SuspectThreshold`
+   - `UnhealthyThreshold`
+   - `LocalNodeID`
+- Health states:
+   - `healthy`
+   - `suspect`
+   - `unhealthy`
+- Public monitor API:
+   - `NewHeartbeatMonitor(...)`
+   - `AddNode(...)`, `RemoveNode(...)`
+   - `Start(ctx)`, `Stop()`
+   - `GetNodeHealth(nodeID)`
+   - `ListNodeHealth()`
+
+The monitor is transport-agnostic and uses a `HeartbeatProbe` interface for heartbeat exchange, allowing future integration with node discovery, leader election, and failover without coupling this phase to a specific transport.
+
+Minimal working example:
+
+- [examples/heartbeat/main.go](examples/heartbeat/main.go)
+
 ### Node Discovery
 
 Node discovery is intended to identify available nodes and maintain information about the distributed network.
