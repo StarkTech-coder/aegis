@@ -1,105 +1,467 @@
-# Aegis Core Engine 🛡️
+# AEGIS — Autonomous Distributed Networking Infrastructure
 
-![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=flat&logo=go)
+![Go](https://img.shields.io/badge/Go-1.26.2%2B-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
-![Architecture](https://img.shields.io/badge/Architecture-Event--Driven-orange)
-![Performance](https://img.shields.io/badge/Packet_Processing-21M%2B/sec-brightgreen)
+![Project](https://img.shields.io/badge/Project-StarkTech-111827)
+![Status](https://img.shields.io/badge/Development-Active-orange)
 
-**Aegis Core** is a reusable networking SDK for building high-performance TCP-based telemetry, IoT, UAV, and edge communication systems.
+**AEGIS** is an independent, modular, high-performance distributed networking SDK developed by StarkTech and written in Go.
 
-It provides a custom binary protocol, packet framing, integrity verification, connection lifecycle management, and a flexible packet processing pipeline while remaining completely independent of application-specific business logic.
+It is designed to provide reliable, secure, and low-latency communication infrastructure for distributed machines, autonomous systems, robotics, UAVs, industrial environments, servers, and edge devices.
 
-> **Aegis Core is not an application.**
+AEGIS focuses on the networking and coordination infrastructure required to connect independent systems and enable them to communicate reliably.
+
+> **AEGIS is infrastructure, not an application.**
 >
-> It is a reusable networking SDK designed for telemetry, IoT, UAV, and edge computing systems.
->
-> **Aegis Tracker** is the companion application that demonstrates how the SDK can be integrated into a real-world telemetry ingestion platform, including packet processing, REST APIs, data persistence, and a live monitoring dashboard.
+> It provides the communication, reliability, security, and distributed coordination foundations upon which higher-level autonomous systems can be built.
+
+AEGIS is also intended to serve as a core communication infrastructure component of StarkTech's future **S.I.M.A. (Star Intelligent Machine / Autonomous)** platform.
 
 ---
 
-## 🚀 Key Features
+## 1. Vision
 
-- **Custom Binary Protocol** – Lightweight binary frame format with magic bytes, payload length prefixes, and CRC32 integrity verification.
-- **Application Agnostic** – Networking infrastructure remains completely separated from business logic through the `PacketHandler` abstraction.
-- **Decoupled Architecture** – Any application can plug into Aegis Core by implementing the `PacketHandler` interface.
-- **Resource Exhaustion Protection** – Buffered semaphore-based connection limiting with configurable `MaxConnections`.
-- **Low-Allocation Buffering** – Optimized `bufio.Reader` buffering minimizes kernel syscalls and memory allocations.
-- **Context-Aware Lifecycles** – Graceful startup, shutdown, and connection management using Go's standard `context.Context`.
-- **Thread-Safe by Design** – Built for highly concurrent TCP workloads using idiomatic Go concurrency patterns.
+The long-term objective of AEGIS is to become a reusable distributed networking infrastructure that can operate across different hardware platforms, operating environments, and application domains.
+
+The architecture must not depend on a particular application, AI model, hardware vendor, or industry.
+
+Potential application domains include:
+
+- Autonomous robotics
+- UAV and unmanned systems
+- Defense and aerospace infrastructure
+- Industrial automation
+- Maritime and distributed marine systems
+- IoT and telemetry networks
+- Edge computing
+- Distributed servers and autonomous nodes
+- Future space exploration infrastructure
+
+These are target application domains, not claims that all integrations are currently implemented.
 
 ---
 
-## 🏗️ System Architecture
+## 2. Core Engineering Objectives
+
+AEGIS is being developed around the following engineering capabilities.
+
+### Networking and Transport
+
+- TCP communication
+- UDP communication
+- Reliable UDP (RUDP)
+- QUIC transport integration
+- Interchangeable transport interfaces
+- Connection lifecycle management
+- Graceful shutdown and reconnection
+
+### Reliable Communication
+
+- ACK (Acknowledgment) mechanisms
+- Packet sequencing
+- Duplicate packet detection
+- Retransmission management
+- Timeout handling
+- Message delivery guarantees
+- Packet ordering
+- Bounded message queues
+- Failure recovery
+
+### Distributed Coordination
+
+- Heartbeat monitoring
+- Node health monitoring
+- Node discovery
+- Leader election
+- Failover
+- Distributed node coordination
+- Network partition handling
+
+### Security
+
+- TLS and mutual TLS (mTLS)
+- Node identity
+- Authentication and authorization
+- Message integrity
+- Replay protection
+- Secure key management
+- Resource exhaustion protection
+
+### Engineering and Operations
+
+- Concurrency safety
+- Context-aware operations
+- Structured logging
+- Metrics and observability
+- Performance benchmarks
+- Unit and integration testing
+- Race detection
+
+**Important:** These are engineering objectives. Their implementation status must be verified against the actual source code.
+
+---
+
+## 3. System Architecture
+
+AEGIS should maintain a clear separation between its major engineering responsibilities.
 
 ```text
-                 Application
-          (IoT / UAV / Telemetry)
-
-                PacketHandler
-                      ▲
-                      │
-          ┌──────────────────────┐
-          │    Aegis Core SDK    │
-          └──────────────────────┘
-                      │
-        ┌─────────────┼─────────────┐
-        │             │             │
-        ▼             ▼             ▼
- TCP Server      Binary Protocol   TCP Client
-                      │
-      Magic + Length + CRC32 + Payload
+                  APPLICATION LAYER
+       Robotics / UAV / Industrial / S.I.M.A.
+                         |
+                         |
+                  AEGIS PUBLIC API
+                         |
+             +-----------+-----------+
+             |                       |
+       COMMUNICATION             COORDINATION
+          LAYER                      LAYER
+             |                       |
+       +-----+------+          +-----+------+
+       |            |          |            |
+    Transport   Reliability  Heartbeat   Node State
+       |            |          |            |
+   +---+---+     +--+---+      |        Leader Election
+   |   |   |     |      |      |            |
+  TCP UDP QUIC  ACK  Retry  Discovery    Failover
+       |
+      RUDP
+       |
+       +--------------------------------+
+       |                                |
+       |        SECURITY LAYER          |
+       |                                |
+       | TLS / mTLS / Identity / Auth   |
+       | Message Integrity / Policies  |
+       +--------------------------------+
+                         |
+                  NETWORK INTERFACE
+                         |
+              Distributed Infrastructure
 ```
+
+This diagram represents the intended architectural separation, not a statement that every component is already implemented.
+
+### Architectural Principles
+
+1. Transport and application logic must remain independent.
+2. Reliability mechanisms must be separated from basic packet transport.
+3. Distributed coordination must not be coupled to a particular transport.
+4. Security must be designed as a foundational layer.
+5. Interfaces should permit different transport implementations.
+6. Resource usage must be bounded.
+7. Failure handling must be explicit and testable.
+8. Public APIs should remain stable unless a breaking change is approved.
 
 ---
 
-## ⚡ Performance
+## 4. Transport Layer
 
-> ⚠️ **Benchmark Disclaimer**
->
-> Benchmark results were obtained on **Apple Silicon M2** using a **local loopback (`127.0.0.1`)** environment with a mock packet generator.
->
-> The reported figures represent **packet processing throughput** of the SDK (serialization, framing, CRC32 validation, and packet handling pipeline) under loopback conditions.
->
-> They should **not** be interpreted as real-world network throughput.
+The transport layer is responsible for moving data between distributed nodes.
 
-### Local Loopback Benchmark
+### TCP
 
-- **Packet Processing Throughput:** **~21.39 Million Packets/sec**
-- **Packets Processed:** **1,000,000**
-- **Concurrent Workers:** **50**
-- **Execution Time:** **~46.74 ms**
-- **Data Integrity:** **100%** (CRC32 Verification)
-- **Error Rate:** **0.00%**
+TCP provides connection-oriented communication and reliable, ordered byte-stream delivery.
+
+The implementation must correctly handle:
+
+- Connection lifecycle
+- Partial reads and writes
+- Packet framing
+- Context cancellation
+- Timeouts
+- Graceful shutdown
+- Reconnection policies
+
+### UDP
+
+UDP provides connectionless datagram communication.
+
+The implementation must account for:
+
+- Packet loss
+- Packet duplication
+- Packet reordering
+- Datagram size limits
+- Malformed packets
+- Resource exhaustion
+
+### RUDP
+
+Reliable UDP is intended to provide reliability mechanisms above UDP.
+
+Its engineering responsibilities include:
+
+- ACK processing
+- Sequence number management
+- Duplicate detection
+- Retransmission
+- Timeout management
+- Delivery tracking
+- Queue management
+- Session lifecycle
+- Recovery behavior
+
+RUDP must be evaluated carefully. A basic ACK implementation alone does not constitute a complete reliable transport protocol.
+
+### QUIC
+
+QUIC is a target transport integration.
+
+It should be evaluated using established Go implementations rather than a custom cryptographic or transport implementation.
+
+Its relationship with TCP, UDP, and RUDP must be decided based on architecture, performance, reliability, and security requirements.
+
+---
+
+## 5. Reliability and Packet Protocol
+
+AEGIS uses a custom binary packet protocol.
+
+The protocol implementation is responsible for defining:
+
+- Packet structure
+- Header fields
+- Payload length
+- Packet types
+- Packet flags
+- Sequence identifiers
+- Integrity verification
+- Message validation
+
+The existing protocol specification is documented in:
+
+`docs/protocol/binary_spec.md`
+
+The packet implementation is located in:
+
+`pkg/aegis/packet.go`
+
+The protocol must be evaluated for:
+
+- Malformed packet handling
+- Invalid lengths
+- Integer overflow
+- Sequence number wraparound
+- Duplicate messages
+- Packet reordering
+- Version compatibility
+- Resource exhaustion
+
+CRC32 may be used for accidental corruption detection, but it must not be treated as cryptographic authentication.
+
+---
+
+## 6. Distributed Coordination
+
+Distributed coordination is one of the long-term objectives of AEGIS.
+
+It is intended to provide infrastructure for systems containing multiple independent nodes.
+
+### Heartbeat
+
+Heartbeat mechanisms are intended to monitor node availability and detect communication failures.
+
+The design must consider:
+
+- Heartbeat intervals
+- Failure detection timeouts
+- Missed heartbeat thresholds
+- Network latency
+- Temporary disconnections
+- Node recovery
+- False failure detection
+
+### Node Discovery
+
+Node discovery is intended to identify available nodes and maintain information about the distributed network.
+
+### Leader Election
+
+Leader election is intended to select a coordinator among participating nodes.
+
+The design must account for:
+
+- Leader selection
+- Election timeouts
+- Leader failure
+- Re-election
+- Network partitions
+- Split-brain prevention
+- Node membership changes
+
+Heartbeat and leader election are separate responsibilities.
+
+Heartbeat can help detect failures, but it does not provide distributed consensus by itself.
+
+A production-oriented leader election design must define its consistency and failure assumptions explicitly.
+
+### Failover and Recovery
+
+Failover mechanisms are intended to maintain service continuity when nodes or network connections fail.
+
+Recovery behavior must be deterministic, observable, and testable.
+
+---
+
+## 7. Security Architecture
+
+Security is a foundational requirement.
+
+AEGIS must use established cryptographic standards and reviewed implementations.
+
+Security objectives include:
+
+- TLS and mutual TLS
+- Node authentication
+- Authorization policies
+- Secure node identity
+- Message integrity
+- Replay protection
+- Secure credential storage
+- Key rotation
+- Connection limits
+- Bounded buffers and queues
+- Protection against malformed and oversized packets
+
+Custom cryptographic algorithms must not be introduced.
+
+CRC32 is not a replacement for message authentication.
+
+---
+
+## 8. Repository Structure
+
+The following structure describes the main areas of the AEGIS repository.
 
 ```text
-================ STREAM LOAD TEST RESULTS ================
-Total Packets Sent : 1000000
-Time Elapsed       : 46.745208ms
-Throughput         : 21392567.13 packets/sec
-==========================================================
+AEGIS/
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
+├── cmd/
+│   └── demo/
+│       └── main.go
+│
+├── docs/
+│   ├── architecture/
+│   │   └── system_architecture.md
+│   │
+│   ├── diagrams/
+│   │   └── sequence_diagram.md
+│   │
+│   ├── protocol/
+│   │   └── binary_spec.md
+│   │
+│   └── research/
+│       └── performance_benchmarks.md
+│
+├── examples/
+│
+├── internal/
+│
+├── pkg/
+│   └── aegis/
+│       ├── client.go
+│       ├── config.go
+│       ├── errors.go
+│       ├── packet.go
+│       ├── packet_test.go
+│       ├── rudp.go
+│       ├── server.go
+│       ├── server_test.go
+│       └── transport.go
+│
+├── .gitignore
+├── go.mod
+├── LICENSE
+├── Makefile
+└── README.md
 ```
 
+The repository structure may evolve as the architecture develops.
+
+### Core Package Responsibilities
+
+| File | Responsibility |
+|---|---|
+| `client.go` | Outbound client and client lifecycle |
+| `server.go` | Server lifecycle and connection handling |
+| `transport.go` | Transport interfaces and implementations |
+| `rudp.go` | Reliable UDP mechanisms |
+| `packet.go` | Binary packet encoding and decoding |
+| `config.go` | Configuration and validation |
+| `errors.go` | Shared error definitions |
+
+### Documentation Responsibilities
+
+| Location | Purpose |
+|---|---|
+| `docs/architecture/` | System architecture and component boundaries |
+| `docs/protocol/` | Packet format and protocol specifications |
+| `docs/diagrams/` | Communication and sequence diagrams |
+| `docs/research/` | Performance research and benchmarks |
+
+**Implementation rule:** Do not assume that a component exists simply because its intended location is described here. Inspect the source code before making conclusions.
+
 ---
 
-## 📦 Typical Use Cases
+## 9. Performance and Benchmarking
 
-- UAV Telemetry Networks
-- IoT Device Gateways
-- Industrial Edge Computing
-- Autonomous Robotics
-- Custom Binary Communication Protocols
-- High-Performance TCP Services
-- Telemetry Collection Pipelines
+Performance is an important engineering objective, but correctness, reliability, and security take priority.
+
+Existing benchmark documentation:
+
+`docs/research/performance_benchmarks.md`
+
+Previously reported local benchmark figures include approximately 21.39 million packet-processing operations per second on Apple Silicon M2 under a local loopback benchmark.
+
+These figures are historical reported results, not independently verified production network throughput.
+
+Benchmark claims must always identify:
+
+- Hardware
+- Operating system
+- Go version
+- Packet size
+- Number of workers
+- Test duration
+- Allocation metrics
+- Benchmark methodology
+- Whether the test uses loopback or a real network
+
+Future performance evaluations should include:
+
+- `ns/op`
+- `B/op`
+- `allocs/op`
+- Throughput
+- Latency percentiles
+- CPU utilization
+- Memory usage
+- Concurrent workload behavior
 
 ---
 
-## 🎯 Design Goals
+## 10. Testing and Quality
 
-- High Throughput
-- Low Latency
-- Modular Architecture
-- Clean API Surface
-- Idiomatic Go
-- Minimal Memory Allocations
-- Easy Integration
-- Production-Oriented Design
+All future implementations must be supported by tests.
+
+Required testing categories:
+
+- Unit tests
+- Integration tests
+- Protocol tests
+- Transport tests
+- Reliability tests
+- Security tests
+- Concurrency tests
+- Failure recovery tests
+- Benchmarks
+
+Where applicable, use:
+
+```bash
+go

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -321,7 +322,21 @@ func (u *UDPTransport) Start(ctx context.Context) error {
 				return nil
 			}
 
+			if isClosedUDPReadError(err) {
+				return nil
+			}
+
 			if isTimeout(err) {
+				continue
+			}
+
+			if isTemporaryNetworkError(err) {
+				u.server.logger.Warn(
+					"Temporary UDP read error",
+					"error",
+					err,
+				)
+
 				continue
 			}
 
@@ -349,16 +364,85 @@ func (u *UDPTransport) Start(ctx context.Context) error {
 		}
 
 		if u.server.handler != nil {
-			if err := u.server.handler.HandlePacket(
-				packet.Payload,
-			); err != nil {
-				u.server.logger.Error(
-					"UDP packet handler failed",
-					"remote_addr",
-					remoteAddr.String(),
-					"error",
-					err,
+			if udpHandler, ok := u.server.handler.(UDPPacketHandler); ok {
+				responsePayload, err := udpHandler.HandleUDPPacket(
+					packet.Payload,
+					remoteAddr,
 				)
+				if err != nil {
+					u.server.logger.Error(
+						"UDP packet handler failed",
+						"remote_addr",
+						remoteAddr.String(),
+						"error",
+						err,
+					)
+				} else if responsePayload != nil {
+					if uint64(len(responsePayload)) > uint64(u.server.config.MaxPayloadSize) {
+						u.server.logger.Warn(
+							"UDP response payload exceeds configured limit",
+							"remote_addr",
+							remoteAddr.String(),
+							"payload_len",
+							len(responsePayload),
+							"max_payload",
+							u.server.config.MaxPayloadSize,
+						)
+					} else {
+						responsePacket := NewPacket(responsePayload)
+						responseData, err := responsePacket.Serialize()
+						if err != nil {
+							u.server.logger.Warn(
+								"Failed to serialize UDP response packet",
+								"remote_addr",
+								remoteAddr.String(),
+								"error",
+								err,
+							)
+						} else if len(responseData) > maxUDPDatagramSize {
+							u.server.logger.Warn(
+								"UDP response datagram exceeds UDP limit",
+								"remote_addr",
+								remoteAddr.String(),
+								"datagram_len",
+								len(responseData),
+							)
+						} else {
+							written, err := conn.WriteToUDP(responseData, remoteAddr)
+							if err != nil {
+								u.server.logger.Warn(
+									"Failed to send UDP response datagram",
+									"remote_addr",
+									remoteAddr.String(),
+									"error",
+									err,
+								)
+							} else if written != len(responseData) {
+								u.server.logger.Warn(
+									"Short UDP response write detected",
+									"remote_addr",
+									remoteAddr.String(),
+									"written",
+									written,
+									"expected",
+									len(responseData),
+								)
+							}
+						}
+					}
+				}
+			} else {
+				if err := u.server.handler.HandlePacket(
+					packet.Payload,
+				); err != nil {
+					u.server.logger.Error(
+						"UDP packet handler failed",
+						"remote_addr",
+						remoteAddr.String(),
+						"error",
+						err,
+					)
+				}
 			}
 		}
 
@@ -381,4 +465,25 @@ func (u *UDPTransport) Close() error {
 	}
 
 	return u.conn.Close()
+}
+
+func isTemporaryNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	netErr, ok := err.(net.Error)
+	return ok && netErr.Temporary()
+}
+
+func isClosedUDPReadError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+
+	return strings.Contains(err.Error(), "use of closed network connection")
 }

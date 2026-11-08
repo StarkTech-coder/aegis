@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"sync"
 )
@@ -11,6 +12,18 @@ import (
 // PacketHandler defines the callback used for decoded packet payloads.
 type PacketHandler interface {
 	HandlePacket(payload []byte) error
+}
+
+// UDPPacketHandler optionally extends PacketHandler with UDP response handling.
+// When implemented, UDP transport can send a single response datagram per request.
+type UDPPacketHandler interface {
+	HandleUDPPacket(payload []byte, remoteAddr *net.UDPAddr) ([]byte, error)
+}
+
+// RUDPPacketHandler optionally extends PacketHandler with RUDP response handling.
+// When implemented, RUDP transport can send one reliable response per request.
+type RUDPPacketHandler interface {
+	HandleRUDPPacket(payload []byte, remoteAddr *net.UDPAddr) ([]byte, error)
 }
 
 // PacketHandlerFunc adapts a function to PacketHandler.

@@ -10,7 +10,7 @@ var (
 
 	// ErrTimeout indicates that a network operation exceeded its deadline.
 	ErrTimeout = errors.New(
-		"aegis: network operation timed out", 
+		"aegis: network operation timed out",
 	)
 
 	// ErrInvalidPacket indicates that packet data failed protocol validation.
@@ -25,7 +25,7 @@ var (
 
 	// ErrPacketTooLarge indicates that packet data exceeded the configured limit.
 	ErrPacketTooLarge = errors.New(
-		"aegis: packet size exceeds max allowed limit",  
+		"aegis: packet size exceeds max allowed limit",
 	)
 
 	// ErrServerClosed indicates that the server is shutting down.
@@ -36,5 +36,35 @@ var (
 	// ErrMaxClientsReached indicates that the connection limit has been reached.
 	ErrMaxClientsReached = errors.New(
 		"aegis: max client connections reached",
+	)
+
+	// ErrRUDPInvalidPacket indicates that an RUDP frame failed validation.
+	ErrRUDPInvalidPacket = errors.New(
+		"aegis-rudp: invalid packet",
+	)
+
+	// ErrRUDPInvalidSequence indicates an invalid or out-of-window sequence value.
+	ErrRUDPInvalidSequence = errors.New(
+		"aegis-rudp: invalid sequence",
+	)
+
+	// ErrRUDPInvalidAcknowledgement indicates an ACK that does not match pending state.
+	ErrRUDPInvalidAcknowledgement = errors.New(
+		"aegis-rudp: invalid acknowledgement",
+	)
+
+	// ErrRUDPRetryExhausted indicates reliable delivery retry budget was exhausted.
+	ErrRUDPRetryExhausted = errors.New(
+		"aegis-rudp: retransmission retries exhausted",
+	)
+
+	// ErrRUDPInFlightCapacity indicates the in-flight pending-ACK capacity was reached.
+	ErrRUDPInFlightCapacity = errors.New(
+		"aegis-rudp: in-flight capacity exhausted",
+	)
+
+	// ErrRUDPSessionClosed indicates the RUDP session/connection is closed.
+	ErrRUDPSessionClosed = errors.New(
+		"aegis-rudp: session closed",
 	)
 )

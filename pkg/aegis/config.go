@@ -16,13 +16,18 @@ const (
 
 // Config defines the network engine parameters.
 type Config struct {
-	Protocol          NetworkProtocol
-	Address           string
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	ConnectionTimeout time.Duration
-	MaxConnections    int
-	MaxPayloadSize    uint32
+	Protocol                     NetworkProtocol
+	Address                      string
+	ReadTimeout                  time.Duration
+	WriteTimeout                 time.Duration
+	ConnectionTimeout            time.Duration
+	MaxConnections               int
+	MaxPayloadSize               uint32
+	RUDPInitialRetransmitTimeout time.Duration
+	RUDPMaxRetransmitTimeout     time.Duration
+	RUDPMaxRetries               int
+	RUDPMaxInFlight              int
+	RUDPReceiveQueueSize         int
 }
 
 const DefaultMaxPayloadSize uint32 = 10 * 1024 * 1024
@@ -30,13 +35,18 @@ const DefaultMaxPayloadSize uint32 = 10 * 1024 * 1024
 // DefaultConfig returns the default Aegis configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		Protocol:          ProtocolTCP,
-		Address:           ":8080",
-		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      5 * time.Second,
-		ConnectionTimeout: 3 * time.Second, 
-		MaxConnections:    10000, 
-		MaxPayloadSize:    DefaultMaxPayloadSize,
+		Protocol:                     ProtocolTCP,
+		Address:                      ":8080",
+		ReadTimeout:                  5 * time.Second,
+		WriteTimeout:                 5 * time.Second,
+		ConnectionTimeout:            3 * time.Second,
+		MaxConnections:               10000,
+		MaxPayloadSize:               DefaultMaxPayloadSize,
+		RUDPInitialRetransmitTimeout: 200 * time.Millisecond,
+		RUDPMaxRetransmitTimeout:     2 * time.Second,
+		RUDPMaxRetries:               5,
+		RUDPMaxInFlight:              128,
+		RUDPReceiveQueueSize:         256,
 	}
 }
 
@@ -49,7 +59,7 @@ func (cfg *Config) clone() *Config {
 	return &copyCfg
 }
 
-func (cfg *Config) sanitize() {  
+func (cfg *Config) sanitize() {
 	if cfg == nil {
 		return
 	}
@@ -90,7 +100,27 @@ func (cfg *Config) sanitize() {
 
 		default:
 			cfg.MaxPayloadSize = defaultCfg.MaxPayloadSize
-		} 
+		}
+	}
+
+	if cfg.RUDPInitialRetransmitTimeout <= 0 {
+		cfg.RUDPInitialRetransmitTimeout = defaultCfg.RUDPInitialRetransmitTimeout
+	}
+
+	if cfg.RUDPMaxRetransmitTimeout <= 0 {
+		cfg.RUDPMaxRetransmitTimeout = defaultCfg.RUDPMaxRetransmitTimeout
+	}
+
+	if cfg.RUDPMaxRetries <= 0 {
+		cfg.RUDPMaxRetries = defaultCfg.RUDPMaxRetries
+	}
+
+	if cfg.RUDPMaxInFlight <= 0 {
+		cfg.RUDPMaxInFlight = defaultCfg.RUDPMaxInFlight
+	}
+
+	if cfg.RUDPReceiveQueueSize <= 0 {
+		cfg.RUDPReceiveQueueSize = defaultCfg.RUDPReceiveQueueSize
 	}
 }
 
@@ -170,6 +200,48 @@ func (cfg *Config) Validate() error {
 		)
 	}
 
+	if cfg.RUDPInitialRetransmitTimeout < 10*time.Millisecond {
+		return errors.New(
+			"aegis-config: RUDP initial retransmission timeout must be at least 10ms",
+		)
+	}
+
+	if cfg.RUDPMaxRetransmitTimeout < cfg.RUDPInitialRetransmitTimeout {
+		return errors.New(
+			"aegis-config: RUDP max retransmission timeout must be greater than or equal to initial timeout",
+		)
+	}
+
+	if cfg.RUDPMaxRetransmitTimeout > 30*time.Second {
+		return errors.New(
+			"aegis-config: RUDP max retransmission timeout cannot exceed 30 seconds",
+		)
+	}
+
+	if cfg.RUDPMaxRetries < 1 {
+		return errors.New(
+			"aegis-config: RUDP max retries must be at least 1",
+		)
+	}
+
+	if cfg.RUDPMaxRetries > 32 {
+		return errors.New(
+			"aegis-config: RUDP max retries cannot exceed 32",
+		)
+	}
+
+	if cfg.RUDPMaxInFlight < 1 {
+		return errors.New(
+			"aegis-config: RUDP max in-flight packets must be at least 1",
+		)
+	}
+
+	if cfg.RUDPReceiveQueueSize < 1 {
+		return errors.New(
+			"aegis-config: RUDP receive queue size must be at least 1",
+		)
+	}
+
 	switch cfg.Protocol {
 	case ProtocolUDP:
 		if cfg.MaxPayloadSize > maxUDPPayloadSize {
@@ -187,4 +259,4 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
-} 
+}

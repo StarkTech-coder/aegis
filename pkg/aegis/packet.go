@@ -3,9 +3,11 @@ package aegis
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
+	"net"
 )
 
 // Magic Bytes to identify the Aegis Protocol ("AG")
@@ -113,6 +115,10 @@ func ReadPacket(r io.Reader, maxPayloadLimit uint32) (*Packet, error) {
 
 	// io.ReadFull blocks until EXACTLY 10 bytes (Header) are read, preventing partial reads
 	if _, err := io.ReadFull(r, headerBuf); err != nil {
+		if classifiedErr := classifyStreamReadError(err); classifiedErr != nil {
+			return nil, classifiedErr
+		}
+
 		return nil, err
 	}
 
@@ -132,6 +138,10 @@ func ReadPacket(r io.Reader, maxPayloadLimit uint32) (*Packet, error) {
 	// Read exactly the payload length specified in the header
 	p.Payload = make([]byte, p.Length)
 	if _, err := io.ReadFull(r, p.Payload); err != nil {
+		if classifiedErr := classifyStreamReadError(err); classifiedErr != nil {
+			return nil, classifiedErr
+		}
+
 		return nil, fmt.Errorf("aegis-packet: failed to read complete payload stream: %w", err)
 	}
 
@@ -141,4 +151,19 @@ func ReadPacket(r io.Reader, maxPayloadLimit uint32) (*Packet, error) {
 	}
 
 	return p, nil
+}
+
+func classifyStreamReadError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.ErrClosedPipe) ||
+		errors.Is(err, net.ErrClosed) {
+		return fmt.Errorf("%w: %v", ErrConnectionClosed, err)
+	}
+
+	return nil
 }

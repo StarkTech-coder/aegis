@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// TestServerLifecycle verifies that the server starts and stops gracefully 
+// TestServerLifecycle verifies that the server starts and stops gracefully
 // without blocking or leaking memory resources.
 func TestServerLifecycle(t *testing.T) {
 	cfg := DefaultConfig()
@@ -30,7 +30,7 @@ func TestServerLifecycle(t *testing.T) {
 	}
 }
 
-// TestConfigValidationAndSanitization tests fallback behaviors and boundary 
+// TestConfigValidationAndSanitization tests fallback behaviors and boundary
 // validation checks for input configurations.
 func TestConfigValidationAndSanitization(t *testing.T) {
 	// Scenario A: Verify that nil config fallback defaults to safe parameters
