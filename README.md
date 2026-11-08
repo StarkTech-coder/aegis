@@ -303,6 +303,30 @@ Minimal working example:
 
 Node discovery is intended to identify available nodes and maintain information about the distributed network.
 
+#### Current implementation (Phase 2)
+
+AEGIS now includes a transport-agnostic node discovery foundation in [pkg/aegis/discovery.go](pkg/aegis/discovery.go).
+
+- `DiscoverySource` interface for pluggable discovery mechanisms.
+- `DiscoveryManager` lifecycle APIs:
+   - `Start(ctx)` / `Stop()`
+   - `RegisterNode(...)` / `UpdateNode(...)` / `RemoveNode(...)`
+   - `GetNode(...)` / `ListNodes()`
+- `DiscoveredNode` snapshot fields:
+   - node ID
+   - address
+   - discovery timestamp
+   - last seen timestamp
+   - health state
+   - metadata
+- Duplicate registration is rejected.
+- Node expiration and cleanup are configurable.
+- Health state synchronization integrates with heartbeat monitoring.
+
+Minimal example:
+
+- [examples/discovery/main.go](examples/discovery/main.go)
+
 ### Leader Election
 
 Leader election is intended to select a coordinator among participating nodes.
@@ -322,6 +346,32 @@ Heartbeat and leader election are separate responsibilities.
 Heartbeat can help detect failures, but it does not provide distributed consensus by itself.
 
 A production-oriented leader election design must define its consistency and failure assumptions explicitly.
+
+#### Current implementation (Phase 2)
+
+AEGIS now includes a leader election foundation in [pkg/aegis/leader_election.go](pkg/aegis/leader_election.go).
+
+- `LeaderElector` APIs:
+   - `Start(ctx)` / `Stop()`
+   - `Join(ctx)` / `Leave(ctx)`
+   - `CurrentLeader()` / `IsLeader()`
+   - `Resign(ctx)`
+   - `LeadershipChanges()`
+- `LeaderStore` interface provides a transport-agnostic coordination backend.
+- `InMemoryLeaderStore` is included for tests/examples and process-local coordination.
+- Election uses term and lease-based records and deterministic candidate ordering among eligible participants.
+- Heartbeat/discovery health is used to avoid retaining unhealthy leaders.
+
+Consistency model and limitations:
+
+- Strong consistency is **not** guaranteed by default.
+- Safety and split-brain resistance depend on the chosen `LeaderStore` backend.
+- `InMemoryLeaderStore` is process-local and intended for development/testing only.
+- Production deployments require a fault-tolerant shared coordination backend implementing `LeaderStore` semantics.
+
+Minimal example:
+
+- [examples/leader-election/main.go](examples/leader-election/main.go)
 
 ### Failover and Recovery
 

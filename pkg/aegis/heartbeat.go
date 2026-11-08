@@ -242,6 +242,17 @@ func (m *HeartbeatMonitor) Stop() error {
 	return nil
 }
 
+// IsRunning reports whether the monitor lifecycle is currently active.
+func (m *HeartbeatMonitor) IsRunning() bool {
+	if m == nil {
+		return false
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.running
+}
+
 // AddNode registers a node for heartbeat monitoring.
 func (m *HeartbeatMonitor) AddNode(endpoint NodeEndpoint) error {
 	if m == nil {
@@ -332,6 +343,18 @@ func (m *HeartbeatMonitor) ListNodeHealth() []NodeHealthInfo {
 	})
 
 	return out
+}
+
+// HasNode reports whether the monitor currently tracks the provided node id.
+func (m *HeartbeatMonitor) HasNode(nodeID string) bool {
+	if m == nil || nodeID == "" {
+		return false
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, ok := m.nodes[nodeID]
+	return ok
 }
 
 func (m *HeartbeatMonitor) startNodeLoopLocked(nodeID string) {
