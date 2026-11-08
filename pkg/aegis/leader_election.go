@@ -202,6 +202,7 @@ type LeaderElector struct {
 	currentLeader LeaderRecord
 	localLeader   bool
 	resignedUntil time.Time
+	excludedUntil map[string]time.Time
 	changes       chan LeadershipChangeEvent
 	changesClosed bool
 	wg            sync.WaitGroup
@@ -223,13 +224,14 @@ func NewLeaderElector(cfg LeaderElectionConfig, store LeaderStore, discovery *Di
 	}
 
 	return &LeaderElector{
-		cfg:       cfg,
-		store:     store,
-		discovery: discovery,
-		heartbeat: heartbeat,
-		logger:    logger,
-		now:       time.Now,
-		changes:   make(chan LeadershipChangeEvent, cfg.LeadershipEventBuffer),
+		cfg:           cfg,
+		store:         store,
+		discovery:     discovery,
+		heartbeat:     heartbeat,
+		logger:        logger,
+		now:           time.Now,
+		excludedUntil: make(map[string]time.Time),
+		changes:       make(chan LeadershipChangeEvent, cfg.LeadershipEventBuffer),
 	}, nil
 }
 
@@ -641,16 +643,37 @@ func (e *LeaderElector) candidateEligible(nodeID string, now time.Time) bool {
 		return false
 	}
 
+	e.mu.RLock()
+	excludedUntil := e.excludedUntil[nodeID]
+	resignedUntil := e.resignedUntil
+	e.mu.RUnlock()
+
+	if !excludedUntil.IsZero() && now.Before(excludedUntil) {
+		return false
+	}
+
 	if nodeID == e.cfg.LocalNodeID {
-		e.mu.RLock()
-		resignedUntil := e.resignedUntil
-		e.mu.RUnlock()
 		if now.Before(resignedUntil) {
 			return false
 		}
 	}
 
 	return e.nodeEligible(nodeID)
+}
+
+func (e *LeaderElector) excludeCandidate(nodeID string, duration time.Duration) {
+	if e == nil || nodeID == "" || duration <= 0 {
+		return
+	}
+
+	until := e.now().Add(duration)
+
+	e.mu.Lock()
+	current := e.excludedUntil[nodeID]
+	if current.IsZero() || until.After(current) {
+		e.excludedUntil[nodeID] = until
+	}
+	e.mu.Unlock()
 }
 
 func (e *LeaderElector) nodeEligible(nodeID string) bool {

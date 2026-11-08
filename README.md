@@ -308,6 +308,7 @@ Node discovery is intended to identify available nodes and maintain information 
 AEGIS now includes a transport-agnostic node discovery foundation in [pkg/aegis/discovery.go](pkg/aegis/discovery.go).
 
 - `DiscoverySource` interface for pluggable discovery mechanisms.
+- `DiscoverySource` currently requires a concrete backend implementation provided by the application (AEGIS does not ship a network discovery protocol by default).
 - `DiscoveryManager` lifecycle APIs:
    - `Start(ctx)` / `Stop()`
    - `RegisterNode(...)` / `UpdateNode(...)` / `RemoveNode(...)`
@@ -378,6 +379,54 @@ Minimal example:
 Failover mechanisms are intended to maintain service continuity when nodes or network connections fail.
 
 Recovery behavior must be deterministic, observable, and testable.
+
+#### Current implementation (Phase 3)
+
+AEGIS now includes a transport-agnostic failover manager in [pkg/aegis/failover.go](pkg/aegis/failover.go).
+
+- `FailoverManager` APIs:
+   - `Start(ctx)` / `Stop()`
+   - `ActiveLeader()`
+   - `FailoverChanges()`
+   - `RegisterHandler(...)` / `UnregisterHandler(...)`
+- Failure detection sources:
+   - leader lease expiration from `LeaderRecord.LeaseExpiresAt`
+   - leader health from discovery and heartbeat state
+   - optional suspect-as-failure policy via `FailoverConfig.TreatSuspectAsFailure`
+- Automatic failover behavior:
+   - clears stale/failed leader records with term-incremented CAS where appropriate
+   - triggers local election reconciliation after failover actions
+   - prevents overlapping failover attempts in a single manager instance
+- Routing integration:
+   - emits serialized failover events (`FailoverEvent`)
+   - invokes registered handlers sequentially (non-concurrent per transition)
+   - handler errors are logged and do not crash the SDK
+
+Leader recovery behavior:
+
+- A recovered previous leader does not automatically reclaim leadership.
+- Recovery flows through normal election semantics and latest `LeaderRecord` term.
+- `FailoverEvent.FencingToken` is the observed monotonic election term and can be used by applications to reject stale actions.
+
+Consistency and split-brain limitations:
+
+- Failover safety is bounded by `LeaderStore` guarantees.
+- `InMemoryLeaderStore` is process-local and cannot provide cross-process consensus, quorum, or durable fencing on its own.
+- Production deployments require a fault-tolerant, atomic shared coordination backend (for example, one supporting linearizable CAS semantics and durable term progression).
+
+Transport behavior note:
+
+- Failover updates leadership and routing signals only; AEGIS does not silently migrate existing TCP/UDP/RUDP/QUIC connections.
+
+Minimal example:
+
+- [examples/failover/example.go](examples/failover/example.go)
+
+Run:
+
+```bash
+go run ./examples/failover
+```
 
 ---
 
