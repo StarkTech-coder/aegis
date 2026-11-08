@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -472,8 +473,9 @@ func isTemporaryNetworkError(err error) bool {
 		return false
 	}
 
-	netErr, ok := err.(net.Error)
-	return ok && netErr.Temporary()
+	return errors.Is(err, syscall.EAGAIN) ||
+		errors.Is(err, syscall.EWOULDBLOCK) ||
+		errors.Is(err, syscall.EINTR)
 }
 
 func isClosedUDPReadError(err error) bool {

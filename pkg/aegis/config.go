@@ -1,6 +1,7 @@
 package aegis
 
 import (
+	"crypto/tls"
 	"errors"
 	"time"
 )
@@ -12,6 +13,7 @@ const (
 	ProtocolTCP  NetworkProtocol = "tcp"
 	ProtocolUDP  NetworkProtocol = "udp"
 	ProtocolRUDP NetworkProtocol = "rudp"
+	ProtocolQUIC NetworkProtocol = "quic"
 )
 
 // Config defines the network engine parameters.
@@ -28,6 +30,19 @@ type Config struct {
 	RUDPMaxRetries               int
 	RUDPMaxInFlight              int
 	RUDPReceiveQueueSize         int
+	QUICHandshakeTimeout         time.Duration
+	QUICIdleTimeout              time.Duration
+	QUICKeepAlivePeriod          time.Duration
+	QUICResponseQueueSize        int
+	QUICMaxIncomingStreams       int64
+	QUICCertFile                 string
+	QUICKeyFile                  string
+	QUICCACertFile               string
+	QUICClientCAFile             string
+	QUICRequireClientCert        bool
+	QUICServerName               string
+	QUICALPN                     string
+	QUICTLSConfig                *tls.Config
 }
 
 const DefaultMaxPayloadSize uint32 = 10 * 1024 * 1024
@@ -47,6 +62,12 @@ func DefaultConfig() *Config {
 		RUDPMaxRetries:               5,
 		RUDPMaxInFlight:              128,
 		RUDPReceiveQueueSize:         256,
+		QUICHandshakeTimeout:         5 * time.Second,
+		QUICIdleTimeout:              30 * time.Second,
+		QUICKeepAlivePeriod:          10 * time.Second,
+		QUICResponseQueueSize:        256,
+		QUICMaxIncomingStreams:       256,
+		QUICALPN:                     "aegis-quic-v1",
 	}
 }
 
@@ -122,6 +143,30 @@ func (cfg *Config) sanitize() {
 	if cfg.RUDPReceiveQueueSize <= 0 {
 		cfg.RUDPReceiveQueueSize = defaultCfg.RUDPReceiveQueueSize
 	}
+
+	if cfg.QUICHandshakeTimeout <= 0 {
+		cfg.QUICHandshakeTimeout = defaultCfg.QUICHandshakeTimeout
+	}
+
+	if cfg.QUICIdleTimeout <= 0 {
+		cfg.QUICIdleTimeout = defaultCfg.QUICIdleTimeout
+	}
+
+	if cfg.QUICKeepAlivePeriod <= 0 {
+		cfg.QUICKeepAlivePeriod = defaultCfg.QUICKeepAlivePeriod
+	}
+
+	if cfg.QUICResponseQueueSize <= 0 {
+		cfg.QUICResponseQueueSize = defaultCfg.QUICResponseQueueSize
+	}
+
+	if cfg.QUICMaxIncomingStreams <= 0 {
+		cfg.QUICMaxIncomingStreams = defaultCfg.QUICMaxIncomingStreams
+	}
+
+	if cfg.QUICALPN == "" {
+		cfg.QUICALPN = defaultCfg.QUICALPN
+	}
 }
 
 // Validate checks the configuration against Aegis runtime limits.
@@ -133,10 +178,10 @@ func (cfg *Config) Validate() error {
 	}
 
 	switch cfg.Protocol {
-	case ProtocolTCP, ProtocolUDP, ProtocolRUDP:
+	case ProtocolTCP, ProtocolUDP, ProtocolRUDP, ProtocolQUIC:
 	default:
 		return errors.New(
-			"aegis-config: unsupported network protocol, must be 'tcp', 'udp' or 'rudp'",
+			"aegis-config: unsupported network protocol, must be 'tcp', 'udp', 'rudp' or 'quic'",
 		)
 	}
 
@@ -239,6 +284,66 @@ func (cfg *Config) Validate() error {
 	if cfg.RUDPReceiveQueueSize < 1 {
 		return errors.New(
 			"aegis-config: RUDP receive queue size must be at least 1",
+		)
+	}
+
+	if cfg.QUICHandshakeTimeout < time.Second {
+		return errors.New(
+			"aegis-config: QUIC handshake timeout must be at least 1 second",
+		)
+	}
+
+	if cfg.QUICHandshakeTimeout > 30*time.Second {
+		return errors.New(
+			"aegis-config: QUIC handshake timeout cannot exceed 30 seconds",
+		)
+	}
+
+	if cfg.QUICIdleTimeout < 2*time.Second {
+		return errors.New(
+			"aegis-config: QUIC idle timeout must be at least 2 seconds",
+		)
+	}
+
+	if cfg.QUICIdleTimeout > 5*time.Minute {
+		return errors.New(
+			"aegis-config: QUIC idle timeout cannot exceed 5 minutes",
+		)
+	}
+
+	if cfg.QUICKeepAlivePeriod < time.Second {
+		return errors.New(
+			"aegis-config: QUIC keepalive period must be at least 1 second",
+		)
+	}
+
+	if cfg.QUICKeepAlivePeriod > cfg.QUICIdleTimeout {
+		return errors.New(
+			"aegis-config: QUIC keepalive period cannot exceed QUIC idle timeout",
+		)
+	}
+
+	if cfg.QUICResponseQueueSize < 1 {
+		return errors.New(
+			"aegis-config: QUIC response queue size must be at least 1",
+		)
+	}
+
+	if cfg.QUICMaxIncomingStreams < 1 {
+		return errors.New(
+			"aegis-config: QUIC max incoming streams must be at least 1",
+		)
+	}
+
+	if cfg.QUICALPN == "" {
+		return errors.New(
+			"aegis-config: QUIC ALPN cannot be empty",
+		)
+	}
+
+	if cfg.QUICTLSConfig != nil && cfg.QUICTLSConfig.InsecureSkipVerify {
+		return errors.New(
+			"aegis-config: QUIC TLS config must not enable InsecureSkipVerify",
 		)
 	}
 

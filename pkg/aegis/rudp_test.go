@@ -33,14 +33,10 @@ type scriptedRUDPConn struct {
 }
 
 type concurrentWriteDetectConn struct {
-	mu sync.Mutex
-
 	readCh chan []byte
 
 	activeOps       int32
 	overlapDetected int32
-
-	writeSeq uint32
 }
 
 func newConcurrentWriteDetectConn() *concurrentWriteDetectConn {
@@ -242,7 +238,11 @@ func serializedPayload(t *testing.T, payload []byte) []byte {
 func TestRUDPSuccessfulDataAckExchange(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	conn.writeHook = func(data []byte, _ int) {
 		frame, err := decodeRUDPFrame(data)
@@ -263,7 +263,11 @@ func TestRUDPSuccessfulDataAckExchange(t *testing.T) {
 func TestRUDPLostDataPacketRetransmits(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	conn.writeHook = func(data []byte, call int) {
 		frame, err := decodeRUDPFrame(data)
@@ -291,7 +295,11 @@ func TestRUDPLostDataPacketRetransmits(t *testing.T) {
 func TestRUDPLostACKRetransmits(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	seenSeq := uint32(0)
 	conn.writeHook = func(data []byte, call int) {
@@ -320,7 +328,11 @@ func TestRUDPLostACKRetransmits(t *testing.T) {
 func TestRUDPDelayedACK(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	conn.writeHook = func(data []byte, _ int) {
 		frame, err := decodeRUDPFrame(data)
@@ -343,7 +355,11 @@ func TestRUDPDelayedACK(t *testing.T) {
 func TestRUDPDuplicateDataAndACKHandling(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	payload := []byte("HELLO")
 	dataFrame, err := encodeRUDPData(1, serializedPayload(t, payload))
@@ -386,7 +402,11 @@ func TestRUDPDuplicateDataAndACKHandling(t *testing.T) {
 func TestRUDPLateAndInvalidACKIgnored(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	writeSeqs := make([]uint32, 0, 2)
 	conn.writeHook = func(data []byte, call int) {
@@ -418,7 +438,11 @@ func TestRUDPLateAndInvalidACKIgnored(t *testing.T) {
 func TestRUDPReorderedDataRejectedUntilExpected(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	p1 := serializedPayload(t, []byte("ONE"))
 	p2 := serializedPayload(t, []byte("TWO"))
@@ -448,7 +472,11 @@ func TestRUDPReorderedDataRejectedUntilExpected(t *testing.T) {
 func TestRUDPRetryExhaustion(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	err := client.SendPacket(context.Background(), conn, []byte("NEVER_ACK"))
 	if err == nil {
@@ -463,7 +491,11 @@ func TestRUDPRetryExhaustion(t *testing.T) {
 func TestRUDPContextCancellationDuringSend(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
 	defer cancel()
@@ -484,7 +516,9 @@ func TestRUDPConnectionClosureDuringRetransmission(t *testing.T) {
 
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
 	}()
 
 	err := client.SendPacket(context.Background(), conn, []byte("CLOSE"))
@@ -535,7 +569,11 @@ func TestRUDPOversizedPayloadRejected(t *testing.T) {
 func TestRUDPConcurrentSendsNoSequenceCollision(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	var mu sync.Mutex
 	seqs := map[uint32]struct{}{}
@@ -573,7 +611,11 @@ func TestRUDPConcurrentSendsNoSequenceCollision(t *testing.T) {
 func TestRUDPPendingStateCleanup(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	conn.writeHook = func(data []byte, _ int) {
 		frame, err := decodeRUDPFrame(data)
@@ -621,7 +663,11 @@ func TestRUDPInFlightCapacityExhausted(t *testing.T) {
 	client.config.RUDPMaxInFlight = 1
 
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	started := make(chan struct{})
 	conn.writeHook = func(data []byte, _ int) {
@@ -679,7 +725,11 @@ func TestRUDPReceivePacketClosedSession(t *testing.T) {
 func TestRUDPWraparoundTransitionMaxToZeroToOne(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	state := client.getOrCreateRUDPSession(conn)
 	state.mu.Lock()
@@ -744,7 +794,11 @@ func TestRUDPWraparoundTransitionMaxToZeroToOne(t *testing.T) {
 func TestRUDPMalformedDataNotAcknowledgedClientSide(t *testing.T) {
 	client := newRUDPTestClient(t)
 	conn := newScriptedRUDPConn()
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("failed to close scripted connection: %v", err)
+		}
+	}()
 
 	bad := []byte{0x00, 0x01, 0x02}
 	frame, err := encodeRUDPData(1, bad)

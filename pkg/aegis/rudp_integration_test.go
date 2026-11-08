@@ -284,7 +284,11 @@ func TestRUDPMalformedDataNotAcknowledgedServerSide(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to dial raw UDP: %v", err)
 	}
-	defer raw.Close()
+	defer func() {
+		if closeErr := raw.Close(); closeErr != nil {
+			t.Errorf("failed to close raw UDP connection: %v", closeErr)
+		}
+	}()
 
 	badDataFrame, err := encodeRUDPData(1, []byte{0x00, 0x01, 0x02})
 	if err != nil {
@@ -320,7 +324,11 @@ func TestRUDPAckFromUnknownPeerDoesNotCreatePeer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to dial raw UDP: %v", err)
 	}
-	defer raw.Close()
+	defer func() {
+		if closeErr := raw.Close(); closeErr != nil {
+			t.Errorf("failed to close raw UDP connection: %v", closeErr)
+		}
+	}()
 
 	ack, err := encodeRUDPAck(100)
 	if err != nil {

@@ -14,11 +14,9 @@ import (
 type Client struct {
 	config *Config
 
-	mu      sync.Mutex
-	nextSeq uint32
-
 	tcpConnGuards sync.Map
 	rudpSessions  sync.Map
+	quicSessions  sync.Map
 }
 
 type tcpConnState struct {
@@ -90,8 +88,17 @@ func (c *Client) Config() Config {
 
 // Connect establishes an outbound connection using the configured protocol.
 func (c *Client) Connect(targetAddress string) (net.Conn, error) {
+	return c.ConnectContext(context.Background(), targetAddress)
+}
+
+// ConnectContext establishes an outbound connection with context cancellation support.
+func (c *Client) ConnectContext(ctx context.Context, targetAddress string) (net.Conn, error) {
 	if c == nil || c.config == nil {
 		return nil, fmt.Errorf("aegis-client: connection failed: client configuration is nil")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	if targetAddress == "" {
@@ -100,11 +107,8 @@ func (c *Client) Connect(targetAddress string) (net.Conn, error) {
 
 	switch c.config.Protocol {
 	case ProtocolTCP:
-		conn, err := net.DialTimeout(
-			"tcp",
-			targetAddress,
-			c.config.ConnectionTimeout,
-		)
+		dialer := net.Dialer{Timeout: c.config.ConnectionTimeout}
+		conn, err := dialer.DialContext(ctx, "tcp", targetAddress)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"aegis-client: failed to connect to target node %s: %w",
@@ -128,13 +132,20 @@ func (c *Client) Connect(targetAddress string) (net.Conn, error) {
 			)
 		}
 
-		conn, err := net.DialUDP("udp", nil, raddr)
+		dialer := &net.Dialer{Timeout: c.config.ConnectionTimeout}
+		connBase, err := dialer.DialContext(ctx, "udp", raddr.String())
 		if err != nil {
 			return nil, fmt.Errorf(
 				"aegis-client: failed to dial UDP target node %s: %w",
 				targetAddress,
 				err,
 			)
+		}
+
+		conn, ok := connBase.(*net.UDPConn)
+		if !ok {
+			_ = connBase.Close()
+			return nil, fmt.Errorf("aegis-client: unexpected UDP connection type %T", connBase)
 		}
 
 		if c.config.Protocol == ProtocolRUDP {
@@ -145,6 +156,9 @@ func (c *Client) Connect(targetAddress string) (net.Conn, error) {
 		}
 
 		return conn, nil
+
+	case ProtocolQUIC:
+		return c.connectQUIC(ctx, targetAddress)
 
 	default:
 		return nil, fmt.Errorf(
@@ -214,6 +228,9 @@ func (c *Client) SendPacket(
 	case ProtocolRUDP:
 		return c.sendRUDP(ctx, conn, data)
 
+	case ProtocolQUIC:
+		return c.sendQUIC(ctx, conn, data)
+
 	default:
 		return fmt.Errorf(
 			"aegis-client: unsupported protocol %q",
@@ -253,6 +270,9 @@ func (c *Client) ReceivePacket(
 
 	case ProtocolRUDP:
 		return c.receiveRUDP(ctx, conn)
+
+	case ProtocolQUIC:
+		return c.receiveQUIC(ctx, conn)
 
 	default:
 		return nil, fmt.Errorf(

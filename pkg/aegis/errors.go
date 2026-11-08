@@ -67,4 +67,24 @@ var (
 	ErrRUDPSessionClosed = errors.New(
 		"aegis-rudp: session closed",
 	)
+
+	// ErrQUICSessionClosed indicates that the QUIC connection/session is closed.
+	ErrQUICSessionClosed = errors.New(
+		"aegis-quic: session closed",
+	)
+
+	// ErrQUICStreamClosed indicates that the QUIC stream is closed.
+	ErrQUICStreamClosed = errors.New(
+		"aegis-quic: stream closed",
+	)
+
+	// ErrQUICNoPendingResponse indicates no response stream is available for receive.
+	ErrQUICNoPendingResponse = errors.New(
+		"aegis-quic: no pending response stream",
+	)
+
+	// ErrQUICTLSConfiguration indicates an invalid or insecure QUIC TLS configuration.
+	ErrQUICTLSConfiguration = errors.New(
+		"aegis-quic: invalid TLS configuration",
+	)
 )

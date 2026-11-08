@@ -26,6 +26,12 @@ type RUDPPacketHandler interface {
 	HandleRUDPPacket(payload []byte, remoteAddr *net.UDPAddr) ([]byte, error)
 }
 
+// QUICPacketHandler optionally extends PacketHandler with QUIC response handling.
+// When implemented, QUIC transport sends one packet response on the same stream.
+type QUICPacketHandler interface {
+	HandleQUICPacket(payload []byte, remoteAddr net.Addr) ([]byte, error)
+}
+
 // PacketHandlerFunc adapts a function to PacketHandler.
 type PacketHandlerFunc func(payload []byte) error
 
@@ -102,6 +108,9 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	case ProtocolRUDP:
 		server.transport = NewRUDPTransport(server)
+
+	case ProtocolQUIC:
+		server.transport = NewQUICTransport(server)
 	}
 
 	return server, nil

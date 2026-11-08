@@ -22,7 +22,8 @@ DATA payload contains a serialized AEGIS packet (`pkg/aegis/packet.go`).
 - Reject payload-length/datagram-size mismatch.
 - Reject oversized payloads.
 - DATA frames must carry `ack=0`.
-- ACK frames must carry `payload_len=0` and `ack!=0`.
+- ACK frames must carry `payload_len=0`.
+- `ack` is a full `uint32` value. `ack=0` is valid in wraparound scenarios.
 
 ## Reliability behavior
 
