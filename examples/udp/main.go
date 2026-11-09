@@ -1,9 +1,9 @@
 package main
 
 import (
-	"aegis/pkg/aegis"
 	"context"
 	"fmt"
+	"github.com/StarkTech-coder/aegis/pkg/aegis"
 	"log"
 	"net"
 	"time"

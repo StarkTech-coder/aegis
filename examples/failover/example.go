@@ -2,10 +2,10 @@
 package main
 
 import (
-	"aegis/pkg/aegis"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/StarkTech-coder/aegis/pkg/aegis"
 	"sync"
 	"time"
 )

@@ -1,4 +1,4 @@
-module aegis
+module github.com/StarkTech-coder/aegis
 
 go 1.26.2
 

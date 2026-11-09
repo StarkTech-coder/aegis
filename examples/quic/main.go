@@ -1,13 +1,14 @@
 package main
 
 import (
-	"aegis/pkg/aegis"
 	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"time"
+
+	"github.com/StarkTech-coder/aegis/pkg/aegis"
 )
 
 type quicEchoHandler struct{}

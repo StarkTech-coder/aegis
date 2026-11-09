@@ -15,6 +15,44 @@ type countingLeaderStore struct {
 	registerCalls   atomic.Int32
 }
 
+type failOnceRegisterStore struct {
+	base      LeaderStore
+	mu        sync.Mutex
+	failError error
+	failed    bool
+}
+
+func (s *failOnceRegisterStore) GetLeader(ctx context.Context) (LeaderRecord, error) {
+	return s.base.GetLeader(ctx)
+}
+
+func (s *failOnceRegisterStore) CompareAndSwapLeader(ctx context.Context, expectedTerm uint64, expectedLeaderID string, newRecord LeaderRecord) (bool, error) {
+	return s.base.CompareAndSwapLeader(ctx, expectedTerm, expectedLeaderID, newRecord)
+}
+
+func (s *failOnceRegisterStore) RegisterNode(ctx context.Context, nodeID string) error {
+	s.mu.Lock()
+	if !s.failed {
+		s.failed = true
+		err := s.failError
+		s.mu.Unlock()
+		if err == nil {
+			return errors.New("injected register failure")
+		}
+		return err
+	}
+	s.mu.Unlock()
+	return s.base.RegisterNode(ctx, nodeID)
+}
+
+func (s *failOnceRegisterStore) UnregisterNode(ctx context.Context, nodeID string) error {
+	return s.base.UnregisterNode(ctx, nodeID)
+}
+
+func (s *failOnceRegisterStore) ListNodes(ctx context.Context) ([]string, error) {
+	return s.base.ListNodes(ctx)
+}
+
 func newCountingLeaderStore() *countingLeaderStore {
 	return &countingLeaderStore{base: NewInMemoryLeaderStore()}
 }
@@ -532,6 +570,39 @@ func TestLeaderElectionCannotRestartAfterStop(t *testing.T) {
 	if err := e.Start(context.Background()); err == nil {
 		t.Fatal("expected restart after stop to fail")
 	}
+}
+
+func TestLeaderElectionStartJoinFailureDoesNotDeadlock(t *testing.T) {
+	store := &failOnceRegisterStore{
+		base:      NewInMemoryLeaderStore(),
+		failError: errors.New("injected join failure"),
+	}
+	e := newElectorForTest(t, "node-a", store, nil, nil)
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- e.Start(context.Background())
+	}()
+
+	select {
+	case err := <-startDone:
+		if err == nil {
+			t.Fatal("expected start to fail on injected join error")
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("start timed out; possible lifecycle mutex deadlock on join failure path")
+	}
+
+	if err := e.Stop(); err != nil {
+		t.Fatalf("stop after failed start should not deadlock: %v", err)
+	}
+
+	if err := e.Start(context.Background()); err != nil {
+		t.Fatalf("start should succeed after transient join failure: %v", err)
+	}
+	defer func() { _ = e.Stop() }()
+
+	waitFor(t, time.Second, func() bool { return e.IsLeader() })
 }
 
 func TestLeaderElectionLeaveUnregistersOnlyOnceWhenLeader(t *testing.T) {

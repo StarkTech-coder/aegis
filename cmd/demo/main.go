@@ -1,10 +1,11 @@
 package main
 
 import (
-	"aegis/pkg/aegis"
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/StarkTech-coder/aegis/pkg/aegis"
 )
 
 func main() {

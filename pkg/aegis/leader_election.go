@@ -267,7 +267,17 @@ func (e *LeaderElector) Start(ctx context.Context) error {
 	joinErr := e.Join(joinCtx)
 	cancel()
 	if joinErr != nil {
-		_ = e.Stop()
+		e.mu.Lock()
+		runCancel := e.runCancel
+		e.running = false
+		e.runCtx = nil
+		e.runCancel = nil
+		e.mu.Unlock()
+
+		if runCancel != nil {
+			runCancel()
+		}
+
 		return joinErr
 	}
 
