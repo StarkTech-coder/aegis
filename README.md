@@ -590,4 +590,10 @@ Required testing categories:
 Where applicable, use:
 
 ```bash
-go
+go test ./...
+go test -race ./...
+go vet ./...
+golangci-lint run
+```
+
+Test and benchmark outcomes should always include explicit command outputs and environment details.
